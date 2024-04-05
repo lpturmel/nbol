@@ -54,7 +54,7 @@ impl Projectile {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Debug, Deref, DerefMut)]
 pub struct AbilityDespawnTimer(pub Timer);
 
 fn load_abilities(
@@ -98,7 +98,7 @@ fn projectile_despawn(
     time: Res<Time>,
 ) {
     for (entity, mut timer) in query.iter_mut() {
-        if timer.0.tick(time.delta()).finished() {
+        if timer.tick(time.delta()).finished() {
             commands.entity(entity).despawn();
         }
     }
