@@ -2,6 +2,7 @@ use crate::abilities::{Abilities, AbilityDespawnTimer, Fireball, Projectile};
 use crate::entities::{Facing, FrameAnimation, Graphics, SpriteSheet};
 use crate::TILE_SIZE;
 use bevy::prelude::*;
+use bevy_inspector_egui::InspectorOptions;
 
 /// Player sprite animation frames
 const PLAYER_FRAMES: usize = 9;
@@ -21,7 +22,8 @@ pub struct PlayerBundle {
     pub sprite: SpriteSheetBundle,
     pub animation: FrameAnimation,
 }
-#[derive(Component)]
+#[derive(Component, Reflect)]
+#[reflect(Component)]
 pub struct Player {
     pub level: u32,
     pub speed: f32,
@@ -141,22 +143,24 @@ fn throw_fireball(
             transform: Transform::from_translation(player_coords),
             ..default()
         };
-        commands.spawn((
-            projectile,
-            sprite_bundle,
-            FrameAnimation {
-                timer: Timer::from_seconds(0.1, TimerMode::Repeating),
-                frames: match direction {
-                    Facing::Up => abilities.fireball.up.to_vec(),
-                    Facing::Down => abilities.fireball.down.to_vec(),
-                    Facing::Left => abilities.fireball.left.to_vec(),
-                    Facing::Right => abilities.fireball.right.to_vec(),
+        commands
+            .spawn((
+                projectile,
+                sprite_bundle,
+                FrameAnimation {
+                    timer: Timer::from_seconds(0.1, TimerMode::Repeating),
+                    frames: match direction {
+                        Facing::Up => abilities.fireball.up.to_vec(),
+                        Facing::Down => abilities.fireball.down.to_vec(),
+                        Facing::Left => abilities.fireball.left.to_vec(),
+                        Facing::Right => abilities.fireball.right.to_vec(),
+                    },
+                    current_frame: 0,
                 },
-                current_frame: 0,
-            },
-            Fireball,
-            AbilityDespawnTimer(Timer::from_seconds(5.0, TimerMode::Once)),
-        ));
+                Fireball,
+                AbilityDespawnTimer(Timer::from_seconds(5.0, TimerMode::Once)),
+            ))
+            .insert(Name::new("fireball"));
     }
 }
 fn energy_system(
@@ -310,5 +314,5 @@ fn spawn_player(
             current_frame: 0,
         },
     };
-    commands.spawn(player);
+    commands.spawn(player).insert(Name::new("player"));
 }

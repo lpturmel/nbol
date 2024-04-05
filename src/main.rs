@@ -4,6 +4,7 @@ use crate::player::PlayerPlugin;
 use crate::splash::SplashPlugin;
 use crate::world::WorldPlugin;
 use bevy::prelude::*;
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 pub mod abilities;
 pub mod enemy;
@@ -28,7 +29,8 @@ impl Plugin for GamePlugin {
         app.add_plugins(PlayerPlugin)
             .add_plugins(EnemyPlugin)
             .add_plugins(AbilityPlugin)
-            .add_plugins(WorldPlugin);
+            .add_plugins(WorldPlugin)
+            .add_plugins(WorldInspectorPlugin::new());
     }
 }
 fn main() {

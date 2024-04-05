@@ -9,7 +9,8 @@ pub struct SpriteSheet {
     pub right: Vec<usize>,
 }
 
-#[derive(Component, Debug, Clone)]
+#[derive(Component, Debug, Clone, Reflect)]
+#[reflect(Component)]
 pub enum Facing {
     Up,
     Down,
@@ -17,7 +18,8 @@ pub enum Facing {
     Right,
 }
 
-#[derive(Component, Clone)]
+#[derive(Component, Clone, Reflect)]
+#[reflect(Component)]
 pub struct Graphics {
     pub facing: Facing,
 }

@@ -124,6 +124,6 @@ fn spawn_enemies(
                 current_frame: 0,
             },
         };
-        commands.spawn(enemy);
+        commands.spawn(enemy).insert(Name::new("enemy"));
     }
 }
