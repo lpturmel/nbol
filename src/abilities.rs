@@ -1,3 +1,4 @@
+use crate::enemy::{Enemy, HealthUpdateEvent};
 use crate::entities::{Facing, FrameAnimation, Graphics};
 use crate::TILE_SIZE;
 use bevy::prelude::*;
@@ -28,7 +29,8 @@ impl Plugin for AbilityPlugin {
         app.add_systems(Startup, load_abilities)
             .add_systems(Update, animate_fireball)
             .add_systems(Update, projectile_mouvement)
-            .add_systems(Update, projectile_despawn);
+            .add_systems(Update, projectile_timer_despawn)
+            .add_systems(Update, projectile_collision);
     }
 }
 
@@ -47,7 +49,7 @@ impl Projectile {
     pub fn new(direction: Facing) -> Self {
         Self {
             speed: 7.5,
-            damage: 10.0,
+            damage: 35.0,
             moving: false,
             graphics: Graphics { facing: direction },
         }
@@ -57,6 +59,36 @@ impl Projectile {
 #[derive(Component, Debug, Deref, DerefMut)]
 pub struct AbilityDespawnTimer(pub Timer);
 
+fn projectile_collision(
+    mut commands: Commands,
+    mut q_projectiles: Query<(Entity, &Transform, &Projectile)>,
+    mut q_enemies: Query<(Entity, &mut Enemy, &Children, &Transform), Without<Projectile>>,
+    mut ev_health_change: EventWriter<HealthUpdateEvent>,
+) {
+    for (projectile_entity, projectile_transform, projectile) in q_projectiles.iter_mut() {
+        for (enemy_entity, mut enemy, children, enemy_transform) in q_enemies.iter_mut() {
+            let distance = enemy_transform
+                .translation
+                .distance(projectile_transform.translation);
+            if distance < (TILE_SIZE * 0.75) {
+                commands.entity(projectile_entity).despawn_recursive();
+                enemy.current_health -= projectile.damage;
+
+                println!("Sending event for entity: {:?}", enemy_entity);
+                println!("Entity has {} children", children.len());
+                ev_health_change.send(HealthUpdateEvent {
+                    entity: enemy_entity,
+                    new_health: enemy.current_health,
+                    total_health: enemy.total_health,
+                });
+                if enemy.current_health <= 0.0 {
+                    commands.entity(enemy_entity).despawn_recursive();
+                }
+                break;
+            }
+        }
+    }
+}
 fn load_abilities(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -92,14 +124,17 @@ fn load_abilities(
     });
 }
 
-fn projectile_despawn(
+fn projectile_timer_despawn(
     mut commands: Commands,
     mut query: Query<(Entity, &mut AbilityDespawnTimer), With<Fireball>>,
     time: Res<Time>,
 ) {
     for (entity, mut timer) in query.iter_mut() {
         if timer.tick(time.delta()).finished() {
-            commands.entity(entity).despawn();
+            let cmd = commands.get_entity(entity);
+            if cmd.is_some() {
+                commands.entity(entity).despawn_recursive();
+            }
         }
     }
 }

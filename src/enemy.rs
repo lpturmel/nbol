@@ -12,12 +12,28 @@ const ENEMY_COUNT: usize = 10;
 
 const ENEMY_FRAMES: usize = 9;
 
+#[derive(Event)]
+pub struct HealthUpdateEvent {
+    pub entity: Entity,
+    pub total_health: f32,
+    pub new_health: f32,
+}
 #[derive(Component)]
 pub struct EnemyNameUI;
 #[derive(Component)]
 pub struct EnemyHealthBackgroundUI;
 #[derive(Component)]
 pub struct EnemyHealthForegroundUI;
+
+pub fn update_hp(sprite: &mut Sprite, total_health: f32, new_health: f32) {
+    let percentage = new_health / total_health;
+    let foreground_scale_x = TILE_SIZE * percentage;
+    *sprite = Sprite {
+        color: Color::RED,
+        custom_size: Some(Vec2::new(foreground_scale_x, 5.0)),
+        ..default()
+    };
+}
 
 #[derive(Resource, Clone)]
 pub struct SkeletonSheet {
@@ -85,12 +101,31 @@ pub struct EnemyPlugin;
 impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_enemies)
+            .add_event::<HealthUpdateEvent>()
             .add_systems(Update, move_enemies)
             .add_systems(Update, animate_enemies)
-            .add_systems(Update, update_enemy_graphics);
+            .add_systems(Update, update_enemy_graphics)
+            .add_systems(Update, update_health_ui);
     }
 }
 
+fn update_health_ui(
+    mut events: EventReader<HealthUpdateEvent>,
+    mut q_sprites: Query<(&mut Sprite, &Parent), With<EnemyHealthForegroundUI>>,
+    mut q_background: Query<(&Parent, &Children), With<EnemyHealthBackgroundUI>>,
+) {
+    for event in events.read() {
+        for (parent, children) in q_background.iter_mut() {
+            if parent.get() == event.entity {
+                for child in children.iter() {
+                    if let Ok(mut sprite) = q_sprites.get_mut(*child) {
+                        update_hp(&mut sprite.0, event.total_health, event.new_health);
+                    }
+                }
+            }
+        }
+    }
+}
 fn animate_enemies(
     mut sprites_query: Query<(&mut TextureAtlas, &Enemy, &mut FrameAnimation), With<Enemy>>,
     time: Res<Time>,
@@ -158,7 +193,6 @@ fn move_enemies(
         } else {
             enemy.moving = false;
             enemy.graphics.facing = Facing::Down;
-            // enemy.aggro = false;
             animation.timer.pause();
         }
     }
