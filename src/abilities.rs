@@ -62,20 +62,17 @@ pub struct AbilityDespawnTimer(pub Timer);
 fn projectile_collision(
     mut commands: Commands,
     mut q_projectiles: Query<(Entity, &Transform, &Projectile)>,
-    mut q_enemies: Query<(Entity, &mut Enemy, &Children, &Transform), Without<Projectile>>,
+    mut q_enemies: Query<(Entity, &mut Enemy, &Transform), Without<Projectile>>,
     mut ev_health_change: EventWriter<HealthUpdateEvent>,
 ) {
     for (projectile_entity, projectile_transform, projectile) in q_projectiles.iter_mut() {
-        for (enemy_entity, mut enemy, children, enemy_transform) in q_enemies.iter_mut() {
+        for (enemy_entity, mut enemy, enemy_transform) in q_enemies.iter_mut() {
             let distance = enemy_transform
                 .translation
                 .distance(projectile_transform.translation);
             if distance < (TILE_SIZE * 0.75) {
                 commands.entity(projectile_entity).despawn_recursive();
                 enemy.current_health -= projectile.damage;
-
-                println!("Sending event for entity: {:?}", enemy_entity);
-                println!("Entity has {} children", children.len());
                 ev_health_change.send(HealthUpdateEvent {
                     entity: enemy_entity,
                     new_health: enemy.current_health,
