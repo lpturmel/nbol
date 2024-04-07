@@ -36,6 +36,7 @@ impl Plugin for GamePlugin {
 fn main() {
     App::new()
         .init_state::<GameState>()
+        .add_systems(Startup, spawn_camera)
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Nbol".into(),
@@ -45,7 +46,6 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Startup, spawn_camera)
         .add_plugins((SplashPlugin, GamePlugin))
         .run();
 }

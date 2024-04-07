@@ -18,7 +18,7 @@ pub enum Facing {
     Right,
 }
 
-#[derive(Component, Clone, Reflect)]
+#[derive(Component, Debug, Clone, Reflect)]
 #[reflect(Component)]
 pub struct Graphics {
     pub facing: Facing,
@@ -29,4 +29,19 @@ pub struct FrameAnimation {
     pub timer: Timer,
     pub frames: Vec<usize>,
     pub current_frame: usize,
+}
+
+/// Returns the facing direction based on the given vector
+pub fn get_facing_direction(direction: Vec3) -> Facing {
+    if direction.x.abs() > direction.y.abs() {
+        if direction.x > 0.0 {
+            Facing::Right
+        } else {
+            Facing::Left
+        }
+    } else if direction.y > 0.0 {
+        Facing::Up
+    } else {
+        Facing::Down
+    }
 }

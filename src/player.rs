@@ -2,7 +2,6 @@ use crate::abilities::{Abilities, AbilityDespawnTimer, Fireball, Projectile};
 use crate::entities::{Facing, FrameAnimation, Graphics, SpriteSheet};
 use crate::TILE_SIZE;
 use bevy::prelude::*;
-use bevy_inspector_egui::InspectorOptions;
 
 /// Player sprite animation frames
 const PLAYER_FRAMES: usize = 9;
