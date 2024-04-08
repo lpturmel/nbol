@@ -1,4 +1,4 @@
-use crate::damage::{DamageEvent, DisplayDamageNumbersEvent};
+use crate::damage::{CriticalHit, Damage, DamageEvent, DisplayDamageNumbersEvent};
 use crate::enemy::Enemy;
 use crate::entities::{DespawnTimer, Facing, FrameAnimation};
 use crate::TILE_SIZE;
@@ -58,11 +58,11 @@ impl Default for Projectile {
 
 fn projectile_collision(
     mut commands: Commands,
-    mut q_projectiles: Query<(Entity, &Transform, &Projectile)>,
+    mut q_projectiles: Query<(Entity, &Transform, &Damage, &CriticalHit), With<Projectile>>,
     mut q_enemies: Query<(Entity, &Transform), With<Enemy>>,
     mut ev_damage: EventWriter<DamageEvent>,
 ) {
-    for (projectile_entity, projectile_transform, projectile) in q_projectiles.iter_mut() {
+    for (projectile_entity, projectile_transform, damage, crit) in q_projectiles.iter_mut() {
         for (enemy_entity, enemy_transform) in q_enemies.iter_mut() {
             let distance = enemy_transform
                 .translation
@@ -70,7 +70,8 @@ fn projectile_collision(
             if distance < (TILE_SIZE * 0.75) {
                 commands.entity(projectile_entity).despawn_recursive();
                 ev_damage.send(DamageEvent {
-                    damage: projectile.damage,
+                    damage: **damage,
+                    crit_hit: *crit,
                     entity: enemy_entity,
                 });
                 break;
@@ -163,14 +164,20 @@ fn display_damage_numbers(
         let mut rng = rand::thread_rng();
         let x = event.position.translation.x + rng.gen_range(-10.0..10.0);
         let y = event.position.translation.y + rng.gen_range(-10.0..10.0);
+        let color = if event.is_crit {
+            Color::ORANGE
+        } else {
+            Color::WHITE
+        };
+        let font_size = if event.is_crit { 24.0 } else { 20.0 };
         commands
             .spawn(Text2dBundle {
                 text: Text::from_section(
                     format!("{:.0}", event.damage),
                     TextStyle {
                         font: Handle::default(),
-                        font_size: 20.0,
-                        color: Color::WHITE,
+                        font_size,
+                        color,
                     },
                 ),
                 transform: Transform::from_xyz(x, y, 2.0),

@@ -4,12 +4,14 @@ use bevy::prelude::*;
 #[derive(Event)]
 pub struct DamageEvent {
     pub damage: f32,
+    pub crit_hit: CriticalHit,
     pub entity: Entity,
 }
 #[derive(Event)]
 pub struct DisplayDamageNumbersEvent {
     pub damage: f32,
     pub position: Transform,
+    pub is_crit: bool,
 }
 
 #[derive(Component, Deref, DerefMut)]
@@ -22,7 +24,7 @@ impl Damage {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Clone, Copy)]
 /// Defines a critical hit chance and multiplier of an entity
 pub struct CriticalHit {
     pub chance: f32,
@@ -54,10 +56,18 @@ fn apply_damage_system(
 ) {
     for e in damage_events.read() {
         if let Ok((entity, transform, mut health)) = q_health.get_mut(e.entity) {
-            health.update(e.damage);
+            let mut final_damage = e.damage;
+            if e.crit_hit.chance > 0.0 {
+                let random = rand::random::<f32>();
+                if random <= e.crit_hit.chance {
+                    final_damage *= e.crit_hit.multiplier;
+                }
+            }
+            health.update(final_damage);
             display_damage_events.send(DisplayDamageNumbersEvent {
-                damage: e.damage,
+                damage: final_damage,
                 position: *transform,
+                is_crit: final_damage != e.damage,
             });
             health_update_events.send(HealthUpdateEvent {
                 entity,

@@ -1,3 +1,4 @@
+use crate::damage::{CriticalHit, Damage};
 use crate::entities::{get_facing_direction, Facing, FrameAnimation, Health, HealthUpdateEvent};
 use crate::player::Player;
 use crate::TILE_SIZE;
@@ -66,6 +67,8 @@ pub struct EnemyBundle {
     pub animation: FrameAnimation,
     pub facing: Facing,
     pub health: Health,
+    pub critical_hit: CriticalHit,
+    pub damage: Damage,
     // pub ui: EnemyUI,
 }
 
@@ -307,6 +310,8 @@ fn spawn_enemies(
                 },
                 current_frame: 0,
             },
+            critical_hit: CriticalHit::new(0.1, 2.0),
+            damage: Damage::new(10.0),
         };
         commands
             .spawn(enemy)

@@ -23,6 +23,8 @@ pub struct PlayerBundle {
     pub sprite: SpriteSheetBundle,
     pub animation: FrameAnimation,
     pub facing: Facing,
+    pub critical_hit: CriticalHit,
+    pub damage: Damage,
 }
 #[derive(Component)]
 pub struct Player {
@@ -30,7 +32,6 @@ pub struct Player {
     pub speed: f32,
     pub moving: bool,
     pub energy: f32,
-    pub critical_hit: CriticalHit,
 }
 
 impl Default for Player {
@@ -40,7 +41,6 @@ impl Default for Player {
             speed: PLAYER_SPEED,
             moving: false,
             energy: 100.0,
-            critical_hit: CriticalHit::new(0.05, 2.0),
         }
     }
 }
@@ -318,6 +318,8 @@ fn spawn_player(
             current_frame: 0,
         },
         facing: Facing::Down,
+        critical_hit: CriticalHit::new(0.1, 2.0),
+        damage: Damage::new(10.0),
     };
     commands.spawn(player).insert(Name::new("player"));
 }
