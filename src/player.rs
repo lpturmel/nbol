@@ -7,8 +7,12 @@ use bevy::prelude::*;
 
 /// Player sprite animation frames
 const PLAYER_FRAMES: usize = 9;
+/// Player sprite cast animation frames
+const PLAYER_CAST_FRAMES: usize = 7;
 /// Player base movement speed
 const PLAYER_SPEED: f32 = 2.0;
+const ANIMATION_WALKING_SPEED: f32 = 0.1;
+const ANIMATION_CASTING_SPEED: f32 = 0.05;
 /// Player sprite size columns
 const COLUMNS: usize = 13;
 /// Player sprite size rows
@@ -28,12 +32,21 @@ pub struct PlayerBundle {
     pub damage: Damage,
     pub level: Level,
     pub xp: Experience,
+    pub state: PlayerState,
+}
+
+#[derive(Component, Default, Reflect, Debug, Clone, Copy, PartialEq, Eq)]
+#[reflect(Component)]
+pub enum PlayerState {
+    #[default]
+    Idle,
+    Moving,
+    Casting,
 }
 #[derive(Component, Reflect)]
 #[reflect(Component)]
 pub struct Player {
     pub speed: f32,
-    pub moving: bool,
     pub energy: f32,
 }
 
@@ -41,7 +54,6 @@ impl Default for Player {
     fn default() -> Self {
         Self {
             speed: PLAYER_SPEED,
-            moving: false,
             energy: 100.0,
         }
     }
@@ -107,6 +119,7 @@ pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Player>()
+            .register_type::<PlayerState>()
             .add_systems(Startup, spawn_player)
             .add_systems(Startup, setup_energy_ui)
             .add_systems(Startup, setup_level_ui)
@@ -122,11 +135,12 @@ impl Plugin for PlayerPlugin {
 fn throw_fireball(
     mut commands: Commands,
     keyboard: Res<ButtonInput<MouseButton>>,
-    player_query: Query<(&Facing, &Level, &Transform), With<Player>>,
+    mut player_query: Query<(&Facing, &mut PlayerState, &Level, &Transform), With<Player>>,
     abilities: Res<AbilitySheet>,
 ) {
     if keyboard.just_pressed(MouseButton::Right) {
-        let (facing, level, transform) = player_query.single();
+        let (facing, mut player_state, level, transform) = player_query.single_mut();
+        *player_state = PlayerState::Casting;
         let direction = facing;
         let projectile = Projectile::default();
         let player_coords = transform.translation;
@@ -174,12 +188,12 @@ fn throw_fireball(
     }
 }
 fn energy_system(
-    mut player_query: Query<(&mut Player, &Transform)>,
+    mut player_query: Query<(&mut PlayerState, &mut Player)>,
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
-    let (mut player, _) = player_query.single_mut();
-    if keyboard.pressed(KeyCode::ShiftLeft) && player.moving {
+    let (player_state, mut player) = player_query.single_mut();
+    if keyboard.pressed(KeyCode::ShiftLeft) && PlayerState::Moving == *player_state {
         player.energy -= ENERGY_COST * time.delta_seconds();
         if player.energy < 0.0 {
             player.energy = 0.0;
@@ -192,44 +206,76 @@ fn energy_system(
     }
 }
 fn update_player_graphics(
-    mut sprites_query: Query<(&Facing, &mut FrameAnimation), With<Player>>,
+    mut sprites_query: Query<(&Facing, &PlayerState, &mut FrameAnimation), With<Player>>,
     char: Res<SpriteSheet>,
 ) {
-    let (facing, mut animation) = sprites_query.single_mut();
-    animation.frames = match facing {
-        Facing::Up => char.up.to_vec(),
-        Facing::Down => char.down.to_vec(),
-        Facing::Left => char.left.to_vec(),
-        Facing::Right => char.right.to_vec(),
+    let (facing, player_state, mut animation) = sprites_query.single_mut();
+    animation.frames = match player_state {
+        PlayerState::Idle => match facing {
+            Facing::Up => char.up.to_vec(),
+            Facing::Down => char.down.to_vec(),
+            Facing::Left => char.left.to_vec(),
+            Facing::Right => char.right.to_vec(),
+        },
+        PlayerState::Moving => match facing {
+            Facing::Up => char.up.to_vec(),
+            Facing::Down => char.down.to_vec(),
+            Facing::Left => char.left.to_vec(),
+            Facing::Right => char.right.to_vec(),
+        },
+        PlayerState::Casting => match facing {
+            Facing::Up => char.cast_up.to_vec(),
+            Facing::Down => char.cast_down.to_vec(),
+            Facing::Left => char.cast_left.to_vec(),
+            Facing::Right => char.cast_right.to_vec(),
+        },
     };
 }
 fn animate_player(
     mut sprites_query: Query<(&mut TextureAtlas, &mut FrameAnimation), With<Player>>,
-    player_query: Query<&Player>,
+    mut player_query: Query<&mut PlayerState, With<Player>>,
     time: Res<Time>,
 ) {
-    if player_query.single().moving {
-        // single player
-        let (mut texture_atlas, mut animation) = sprites_query.single_mut();
-        animation.timer.tick(time.delta());
-        if animation.timer.just_finished() {
-            animation.current_frame = (animation.current_frame + 1) % animation.frames.len();
-            texture_atlas.index = animation.frames[animation.current_frame];
+    let mut player_state = player_query.single_mut();
+    let (mut texture_atlas, mut animation) = sprites_query.single_mut();
+    let animation_duration = match *player_state {
+        PlayerState::Moving => ANIMATION_WALKING_SPEED,
+        PlayerState::Casting => ANIMATION_CASTING_SPEED,
+        _ => return,
+    };
+    match *player_state {
+        PlayerState::Idle => {
+            texture_atlas.index = animation.frames[0];
+            animation.current_frame = 0;
         }
-    } else {
-        let (mut texture_atlas, mut animation) = sprites_query.single_mut();
-        texture_atlas.index = animation.frames[0];
-        animation.current_frame = 0;
+        _ => {
+            animation
+                .timer
+                .set_duration(std::time::Duration::from_secs_f32(animation_duration));
+            animation.timer.tick(time.delta());
+            if animation.timer.just_finished() {
+                animation.current_frame = (animation.current_frame + 1) % animation.frames.len();
+                texture_atlas.index = animation.frames[animation.current_frame];
+                if animation.current_frame == 0 {
+                    *player_state = PlayerState::Idle;
+                }
+            }
+        }
     }
 }
 
 fn player_mouvement(
-    mut player_query: Query<(&mut Player, &mut Facing, &mut Transform)>,
+    mut player_query: Query<(&mut PlayerState, &Player, &mut Facing, &mut Transform)>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
-    let (mut player, mut facing, mut transform) = player_query.single_mut();
-    player.moving = false;
+    let (mut player_state, player, mut facing, mut transform) = player_query.single_mut();
+
+    // TODO: remove?
+    if PlayerState::Casting == *player_state {
+        return;
+    }
+    *player_state = PlayerState::Idle;
 
     let speed_modif = if keyboard_input.pressed(KeyCode::ShiftLeft) && player.energy > 0.0 {
         1.5
@@ -247,7 +293,7 @@ fn player_mouvement(
     let target = transform.translation + Vec3::new(0.0, y_delta, 0.0);
 
     if y_delta != 0.0 {
-        player.moving = true;
+        *player_state = PlayerState::Moving;
         if y_delta > 0.0 {
             *facing = Facing::Up;
         } else if y_delta < 0.0 {
@@ -265,7 +311,7 @@ fn player_mouvement(
     let target = transform.translation + Vec3::new(x_delta, 0.0, 0.0);
 
     if x_delta != 0.0 {
-        player.moving = true;
+        *player_state = PlayerState::Moving;
         if x_delta > 0.0 {
             *facing = Facing::Right;
         } else if x_delta < 0.0 {
@@ -283,18 +329,32 @@ fn spawn_player(
     let texture_handle = asset_server.load("character.png");
     let layout = TextureAtlasLayout::from_grid(Vec2::new(64.0, 64.0), COLUMNS, ROWS, None, None);
     let texture_atlas_layout = textures.add(layout);
-    let row_start = 8;
+    let walk_row_start = 8;
     let player_up: Vec<usize> = (0..PLAYER_FRAMES)
-        .map(|i| COLUMNS * row_start + i)
+        .map(|i| COLUMNS * walk_row_start + i)
         .collect::<Vec<_>>();
     let player_left: Vec<usize> = (0..PLAYER_FRAMES)
-        .map(|i| COLUMNS * (row_start + 1) + i)
+        .map(|i| COLUMNS * (walk_row_start + 1) + i)
         .collect::<Vec<_>>();
     let player_down: Vec<usize> = (0..PLAYER_FRAMES)
-        .map(|i| COLUMNS * (row_start + 2) + i)
+        .map(|i| COLUMNS * (walk_row_start + 2) + i)
         .collect::<Vec<_>>();
     let player_right: Vec<usize> = (0..PLAYER_FRAMES)
-        .map(|i| COLUMNS * (row_start + 3) + i)
+        .map(|i| COLUMNS * (walk_row_start + 3) + i)
+        .collect::<Vec<_>>();
+
+    let cast_row_start = 0;
+    let player_cast_up: Vec<usize> = (0..PLAYER_CAST_FRAMES)
+        .map(|i| COLUMNS * cast_row_start + i)
+        .collect::<Vec<_>>();
+    let player_cast_left: Vec<usize> = (0..PLAYER_CAST_FRAMES)
+        .map(|i| COLUMNS * (cast_row_start + 1) + i)
+        .collect::<Vec<_>>();
+    let player_cast_down: Vec<usize> = (0..PLAYER_CAST_FRAMES)
+        .map(|i| COLUMNS * (cast_row_start + 2) + i)
+        .collect::<Vec<_>>();
+    let player_cast_right: Vec<usize> = (0..PLAYER_CAST_FRAMES)
+        .map(|i| COLUMNS * (cast_row_start + 3) + i)
         .collect::<Vec<_>>();
 
     let character_sheet = SpriteSheet {
@@ -303,6 +363,10 @@ fn spawn_player(
         down: player_down.clone(),
         left: player_left,
         right: player_right,
+        cast_up: player_cast_up,
+        cast_down: player_cast_down,
+        cast_left: player_cast_left,
+        cast_right: player_cast_right,
     };
     commands.insert_resource(character_sheet);
 
@@ -319,6 +383,7 @@ fn spawn_player(
         player: Player::default(),
         health: Health::new(500.0),
         sprite: sprite_bundle,
+        state: PlayerState::default(),
         animation: FrameAnimation {
             timer: Timer::from_seconds(0.1, TimerMode::Repeating),
             frames: player_down.to_vec(),

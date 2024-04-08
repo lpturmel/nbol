@@ -1,7 +1,6 @@
-use bevy::prelude::*;
-
 use crate::enemy::EnemyDefeatedEvent;
 use crate::player::Player;
+use bevy::prelude::*;
 
 const BASE_EXP: f32 = 100.0;
 const EXP_MULTIPLIER: f32 = 1.5;

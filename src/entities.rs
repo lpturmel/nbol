@@ -7,6 +7,10 @@ pub struct SpriteSheet {
     pub down: Vec<usize>,
     pub left: Vec<usize>,
     pub right: Vec<usize>,
+    pub cast_up: Vec<usize>,
+    pub cast_down: Vec<usize>,
+    pub cast_left: Vec<usize>,
+    pub cast_right: Vec<usize>,
 }
 
 #[derive(Component, Debug, Copy, Clone)]
