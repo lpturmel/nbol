@@ -12,6 +12,19 @@ const ENEMY_COUNT: usize = 10;
 const ENEMY_FRAMES: usize = 9;
 
 #[derive(Component)]
+pub enum EnemyType {
+    Skeleton,
+}
+
+impl EnemyType {
+    pub fn display_name(&self) -> String {
+        match self {
+            EnemyType::Skeleton => "Skeleton".to_string(),
+        }
+    }
+}
+
+#[derive(Component)]
 pub struct EnemyNameUI;
 #[derive(Component)]
 pub struct EnemyHealthBackgroundUI;
@@ -63,6 +76,7 @@ impl Default for Enemy {
 #[derive(Bundle)]
 pub struct EnemyBundle {
     pub enemy: Enemy,
+    pub enemy_type: EnemyType,
     pub sprite: SpriteSheetBundle,
     pub animation: FrameAnimation,
     pub facing: Facing,
@@ -88,7 +102,8 @@ pub struct EnemyPlugin;
 
 impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_enemies)
+        app.add_event::<EnemyDefeatedEvent>()
+            .add_systems(Startup, spawn_enemies)
             .add_systems(Update, move_enemies)
             .add_systems(Update, animate_enemies)
             .add_systems(Update, update_enemy_graphics)
@@ -247,9 +262,10 @@ fn spawn_enemies(
             ..Default::default()
         };
 
+        let enemy_type = EnemyType::Skeleton;
         let enemy = Enemy {
             spawn_coords: coordinates,
-            display_name: "Skeleton".to_string(),
+            display_name: enemy_type.display_name(),
             ..Default::default()
         };
 
@@ -297,6 +313,7 @@ fn spawn_enemies(
         };
         let enemy = EnemyBundle {
             enemy,
+            enemy_type,
             facing,
             health: Health::new(130.0),
             sprite: sprite_bundle,
@@ -325,3 +342,6 @@ fn spawn_enemies(
             });
     }
 }
+
+#[derive(Event)]
+pub struct EnemyDefeatedEvent;

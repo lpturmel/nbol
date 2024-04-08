@@ -7,10 +7,13 @@ use crate::world::WorldPlugin;
 use bevy::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
+use self::exp::ExperiencePlugin;
+
 pub mod abilities;
 pub mod damage;
 pub mod enemy;
 pub mod entities;
+pub mod exp;
 pub mod player;
 pub mod world;
 
@@ -31,6 +34,7 @@ impl Plugin for GamePlugin {
         app.add_plugins(PlayerPlugin)
             .add_plugins(DamagePlugin)
             .add_plugins(EnemyPlugin)
+            .add_plugins(ExperiencePlugin)
             .add_plugins(AbilityPlugin)
             .add_plugins(WorldPlugin)
             .add_plugins(WorldInspectorPlugin::new());

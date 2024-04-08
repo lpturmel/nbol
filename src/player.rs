@@ -1,6 +1,7 @@
 use crate::abilities::{AbilitySheet, Fireball, Projectile};
 use crate::damage::{CriticalHit, Damage};
 use crate::entities::{DespawnTimer, Facing, FrameAnimation, Health, SpriteSheet};
+use crate::exp::{Experience, Level};
 use crate::TILE_SIZE;
 use bevy::prelude::*;
 
@@ -25,10 +26,12 @@ pub struct PlayerBundle {
     pub facing: Facing,
     pub critical_hit: CriticalHit,
     pub damage: Damage,
+    pub level: Level,
+    pub xp: Experience,
 }
-#[derive(Component)]
+#[derive(Component, Reflect)]
+#[reflect(Component)]
 pub struct Player {
-    pub level: u32,
     pub speed: f32,
     pub moving: bool,
     pub energy: f32,
@@ -37,7 +40,6 @@ pub struct Player {
 impl Default for Player {
     fn default() -> Self {
         Self {
-            level: 1,
             speed: PLAYER_SPEED,
             moving: false,
             energy: 100.0,
@@ -104,7 +106,8 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_player)
+        app.register_type::<Player>()
+            .add_systems(Startup, spawn_player)
             .add_systems(Startup, setup_energy_ui)
             .add_systems(Startup, setup_level_ui)
             .add_systems(Update, player_mouvement)
@@ -320,6 +323,8 @@ fn spawn_player(
         facing: Facing::Down,
         critical_hit: CriticalHit::new(0.1, 2.0),
         damage: Damage::new(10.0),
+        level: Level::new(1),
+        xp: Experience::new(0.0),
     };
     commands.spawn(player).insert(Name::new("player"));
 }

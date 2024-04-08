@@ -1,3 +1,4 @@
+use crate::enemy::EnemyDefeatedEvent;
 use crate::entities::{Health, HealthUpdateEvent};
 use bevy::prelude::*;
 
@@ -52,6 +53,7 @@ fn apply_damage_system(
     mut damage_events: EventReader<DamageEvent>,
     mut display_damage_events: EventWriter<DisplayDamageNumbersEvent>,
     mut health_update_events: EventWriter<HealthUpdateEvent>,
+    mut enemy_events: EventWriter<EnemyDefeatedEvent>,
     mut q_health: Query<(Entity, &Transform, &mut Health)>,
 ) {
     for e in damage_events.read() {
@@ -75,6 +77,7 @@ fn apply_damage_system(
                 new_health: health.current(),
             });
             if health.current() <= 0.0 {
+                enemy_events.send(EnemyDefeatedEvent);
                 commands.entity(entity).despawn_recursive();
             }
         }
