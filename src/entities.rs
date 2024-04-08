@@ -9,19 +9,12 @@ pub struct SpriteSheet {
     pub right: Vec<usize>,
 }
 
-#[derive(Component, Debug, Clone, Reflect)]
-#[reflect(Component)]
+#[derive(Component, Debug, Copy, Clone)]
 pub enum Facing {
     Up,
     Down,
     Left,
     Right,
-}
-
-#[derive(Component, Debug, Clone, Reflect)]
-#[reflect(Component)]
-pub struct Graphics {
-    pub facing: Facing,
 }
 
 #[derive(Component)]
@@ -44,4 +37,35 @@ pub fn get_facing_direction(direction: Vec3) -> Facing {
     } else {
         Facing::Down
     }
+}
+
+#[derive(Component, Debug, Deref, DerefMut)]
+pub struct DespawnTimer(pub Timer);
+
+#[derive(Component)]
+pub struct Health {
+    current: f32,
+    max: f32,
+}
+
+impl Health {
+    pub fn new(max: f32) -> Self {
+        Self { current: max, max }
+    }
+    pub fn current(&self) -> f32 {
+        self.current
+    }
+    pub fn max(&self) -> f32 {
+        self.max
+    }
+    pub fn update(&mut self, damage: f32) {
+        self.current -= damage;
+    }
+}
+
+#[derive(Event)]
+pub struct HealthUpdateEvent {
+    pub entity: Entity,
+    pub total_health: f32,
+    pub new_health: f32,
 }

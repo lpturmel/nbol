@@ -1,7 +1,9 @@
-use crate::enemy::{Enemy, HealthUpdateEvent};
-use crate::entities::{Facing, FrameAnimation, Graphics};
+use crate::damage::{DamageEvent, DisplayDamageNumbersEvent};
+use crate::enemy::Enemy;
+use crate::entities::{DespawnTimer, Facing, FrameAnimation};
 use crate::TILE_SIZE;
 use bevy::prelude::*;
+use rand::Rng;
 
 const COLUMNS: usize = 8;
 const ROWS: usize = 8;
@@ -9,11 +11,11 @@ const ROWS: usize = 8;
 const FIREBALL_FRAMES: usize = 7;
 
 #[derive(Resource)]
-pub struct Abilities {
-    pub fireball: FireballRes,
+pub struct AbilitySheet {
+    pub fireball: FireballSheet,
 }
 #[derive(Resource)]
-pub struct FireballRes {
+pub struct FireballSheet {
     pub handle: Handle<Image>,
     pub layout: Handle<TextureAtlasLayout>,
     pub up: Vec<usize>,
@@ -29,8 +31,8 @@ impl Plugin for AbilityPlugin {
         app.add_systems(Startup, load_abilities)
             .add_systems(Update, animate_fireball)
             .add_systems(Update, projectile_mouvement)
-            .add_systems(Update, projectile_timer_despawn)
-            .add_systems(Update, projectile_collision);
+            .add_systems(Update, projectile_collision)
+            .add_systems(Update, display_damage_numbers);
     }
 }
 
@@ -42,45 +44,35 @@ pub struct Projectile {
     pub speed: f32,
     pub damage: f32,
     pub moving: bool,
-    pub graphics: Graphics,
 }
 
-impl Projectile {
-    pub fn new(direction: Facing) -> Self {
+impl Default for Projectile {
+    fn default() -> Self {
         Self {
             speed: 7.5,
             damage: 35.0,
             moving: false,
-            graphics: Graphics { facing: direction },
         }
     }
 }
 
-#[derive(Component, Debug, Deref, DerefMut)]
-pub struct AbilityDespawnTimer(pub Timer);
-
 fn projectile_collision(
     mut commands: Commands,
     mut q_projectiles: Query<(Entity, &Transform, &Projectile)>,
-    mut q_enemies: Query<(Entity, &mut Enemy, &Transform), Without<Projectile>>,
-    mut ev_health_change: EventWriter<HealthUpdateEvent>,
+    mut q_enemies: Query<(Entity, &Transform), With<Enemy>>,
+    mut ev_damage: EventWriter<DamageEvent>,
 ) {
     for (projectile_entity, projectile_transform, projectile) in q_projectiles.iter_mut() {
-        for (enemy_entity, mut enemy, enemy_transform) in q_enemies.iter_mut() {
+        for (enemy_entity, enemy_transform) in q_enemies.iter_mut() {
             let distance = enemy_transform
                 .translation
                 .distance(projectile_transform.translation);
             if distance < (TILE_SIZE * 0.75) {
                 commands.entity(projectile_entity).despawn_recursive();
-                enemy.current_health -= projectile.damage;
-                ev_health_change.send(HealthUpdateEvent {
+                ev_damage.send(DamageEvent {
+                    damage: projectile.damage,
                     entity: enemy_entity,
-                    new_health: enemy.current_health,
-                    total_health: enemy.total_health,
                 });
-                if enemy.current_health <= 0.0 {
-                    commands.entity(enemy_entity).despawn_recursive();
-                }
                 break;
             }
         }
@@ -108,7 +100,7 @@ fn load_abilities(
         .map(|i| COLUMNS * (row_start + 6) + i)
         .collect::<Vec<_>>();
 
-    let fireball_sheet = FireballRes {
+    let fireball_sheet = FireballSheet {
         handle: texture_handle,
         layout: texture_atlas_layout,
         up,
@@ -116,29 +108,15 @@ fn load_abilities(
         left,
         right,
     };
-    commands.insert_resource(Abilities {
+    commands.insert_resource(AbilitySheet {
         fireball: fireball_sheet,
     });
 }
 
-fn projectile_timer_despawn(
-    mut commands: Commands,
-    mut query: Query<(Entity, &mut AbilityDespawnTimer), With<Fireball>>,
-    time: Res<Time>,
-) {
-    for (entity, mut timer) in query.iter_mut() {
-        if timer.tick(time.delta()).finished() {
-            let cmd = commands.get_entity(entity);
-            if cmd.is_some() {
-                commands.entity(entity).despawn_recursive();
-            }
-        }
-    }
-}
-fn projectile_mouvement(mut query: Query<(&Projectile, &mut Transform)>, time: Res<Time>) {
+fn projectile_mouvement(mut query: Query<(&Projectile, &Facing, &mut Transform)>, time: Res<Time>) {
     let projectiles = query.iter_mut();
-    for (projectile, mut transform) in projectiles {
-        let delta = match projectile.graphics.facing {
+    for (projectile, facing, mut transform) in projectiles {
+        let delta = match facing {
             Facing::Up => Vec3::new(
                 0.0,
                 projectile.speed * TILE_SIZE * time.delta_seconds(),
@@ -174,5 +152,30 @@ fn animate_fireball(
             animation.current_frame = (animation.current_frame + 1) % animation.frames.len();
             texture_atlas.index = animation.frames[animation.current_frame];
         }
+    }
+}
+
+fn display_damage_numbers(
+    mut commands: Commands,
+    mut events: EventReader<DisplayDamageNumbersEvent>,
+) {
+    for event in events.read() {
+        let mut rng = rand::thread_rng();
+        let x = event.position.translation.x + rng.gen_range(-10.0..10.0);
+        let y = event.position.translation.y + rng.gen_range(-10.0..10.0);
+        commands
+            .spawn(Text2dBundle {
+                text: Text::from_section(
+                    format!("{:.0}", event.damage),
+                    TextStyle {
+                        font: Handle::default(),
+                        font_size: 20.0,
+                        color: Color::WHITE,
+                    },
+                ),
+                transform: Transform::from_xyz(x, y, 2.0),
+                ..Default::default()
+            })
+            .insert(DespawnTimer(Timer::from_seconds(0.5, TimerMode::Once)));
     }
 }

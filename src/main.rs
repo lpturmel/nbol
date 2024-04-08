@@ -1,4 +1,5 @@
 use crate::abilities::AbilityPlugin;
+use crate::damage::DamagePlugin;
 use crate::enemy::EnemyPlugin;
 use crate::player::PlayerPlugin;
 use crate::splash::SplashPlugin;
@@ -7,6 +8,7 @@ use bevy::prelude::*;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 pub mod abilities;
+pub mod damage;
 pub mod enemy;
 pub mod entities;
 pub mod player;
@@ -27,6 +29,7 @@ struct GamePlugin;
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(PlayerPlugin)
+            .add_plugins(DamagePlugin)
             .add_plugins(EnemyPlugin)
             .add_plugins(AbilityPlugin)
             .add_plugins(WorldPlugin)

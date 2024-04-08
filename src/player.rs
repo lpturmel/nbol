@@ -1,5 +1,6 @@
-use crate::abilities::{Abilities, AbilityDespawnTimer, Fireball, Projectile};
-use crate::entities::{Facing, FrameAnimation, Graphics, SpriteSheet};
+use crate::abilities::{AbilitySheet, Fireball, Projectile};
+use crate::damage::{CriticalHit, Damage};
+use crate::entities::{DespawnTimer, Facing, FrameAnimation, Health, SpriteSheet};
 use crate::TILE_SIZE;
 use bevy::prelude::*;
 
@@ -18,17 +19,18 @@ const ENERGY_COST: f32 = 10.0; // per second
 #[derive(Bundle)]
 pub struct PlayerBundle {
     pub player: Player,
+    pub health: Health,
     pub sprite: SpriteSheetBundle,
     pub animation: FrameAnimation,
+    pub facing: Facing,
 }
-#[derive(Component, Reflect)]
-#[reflect(Component)]
+#[derive(Component)]
 pub struct Player {
     pub level: u32,
     pub speed: f32,
     pub moving: bool,
-    pub graphics: Graphics,
     pub energy: f32,
+    pub critical_hit: CriticalHit,
 }
 
 impl Default for Player {
@@ -38,9 +40,7 @@ impl Default for Player {
             speed: PLAYER_SPEED,
             moving: false,
             energy: 100.0,
-            graphics: Graphics {
-                facing: Facing::Down,
-            },
+            critical_hit: CriticalHit::new(0.05, 2.0),
         }
     }
 }
@@ -119,13 +119,13 @@ impl Plugin for PlayerPlugin {
 fn throw_fireball(
     mut commands: Commands,
     keyboard: Res<ButtonInput<MouseButton>>,
-    player_query: Query<(&Player, &Transform)>,
-    abilities: Res<Abilities>,
+    player_query: Query<(&Facing, &Transform), With<Player>>,
+    abilities: Res<AbilitySheet>,
 ) {
     if keyboard.just_pressed(MouseButton::Right) {
-        let (player, transform) = player_query.single();
-        let direction = &player.graphics.facing;
-        let projectile = Projectile::new(direction.clone());
+        let (facing, transform) = player_query.single();
+        let direction = facing;
+        let projectile = Projectile::default();
         let player_coords = transform.translation;
         let initial_frame = match direction {
             Facing::Up => abilities.fireball.up[0],
@@ -157,7 +157,11 @@ fn throw_fireball(
                     current_frame: 0,
                 },
                 Fireball,
-                AbilityDespawnTimer(Timer::from_seconds(5.0, TimerMode::Once)),
+                DespawnTimer(Timer::from_seconds(5.0, TimerMode::Once)),
+                Damage::new(20.0),
+                // 10% chance to deal double damage
+                CriticalHit::new(0.1, 2.0),
+                *facing,
             ))
             .insert(Name::new("fireball"));
     }
@@ -181,11 +185,11 @@ fn energy_system(
     }
 }
 fn update_player_graphics(
-    mut sprites_query: Query<(&Player, &mut FrameAnimation)>,
+    mut sprites_query: Query<(&Facing, &mut FrameAnimation), With<Player>>,
     char: Res<SpriteSheet>,
 ) {
-    let (player, mut animation) = sprites_query.single_mut();
-    animation.frames = match player.graphics.facing {
+    let (facing, mut animation) = sprites_query.single_mut();
+    animation.frames = match facing {
         Facing::Up => char.up.to_vec(),
         Facing::Down => char.down.to_vec(),
         Facing::Left => char.left.to_vec(),
@@ -213,11 +217,11 @@ fn animate_player(
 }
 
 fn player_mouvement(
-    mut player_query: Query<(&mut Player, &mut Transform)>,
+    mut player_query: Query<(&mut Player, &mut Facing, &mut Transform)>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
-    let (mut player, mut transform) = player_query.single_mut();
+    let (mut player, mut facing, mut transform) = player_query.single_mut();
     player.moving = false;
 
     let speed_modif = if keyboard_input.pressed(KeyCode::ShiftLeft) && player.energy > 0.0 {
@@ -238,9 +242,9 @@ fn player_mouvement(
     if y_delta != 0.0 {
         player.moving = true;
         if y_delta > 0.0 {
-            player.graphics.facing = Facing::Up;
+            *facing = Facing::Up;
         } else if y_delta < 0.0 {
-            player.graphics.facing = Facing::Down;
+            *facing = Facing::Down;
         }
         transform.translation = target;
     }
@@ -256,9 +260,9 @@ fn player_mouvement(
     if x_delta != 0.0 {
         player.moving = true;
         if x_delta > 0.0 {
-            player.graphics.facing = Facing::Right;
+            *facing = Facing::Right;
         } else if x_delta < 0.0 {
-            player.graphics.facing = Facing::Left;
+            *facing = Facing::Left;
         }
         transform.translation = target;
     }
@@ -306,12 +310,14 @@ fn spawn_player(
     };
     let player = PlayerBundle {
         player: Player::default(),
+        health: Health::new(500.0),
         sprite: sprite_bundle,
         animation: FrameAnimation {
             timer: Timer::from_seconds(0.1, TimerMode::Repeating),
             frames: player_down.to_vec(),
             current_frame: 0,
         },
+        facing: Facing::Down,
     };
     commands.spawn(player).insert(Name::new("player"));
 }

@@ -1,4 +1,4 @@
-use crate::entities::{get_facing_direction, Facing, FrameAnimation, Graphics};
+use crate::entities::{get_facing_direction, Facing, FrameAnimation, Health, HealthUpdateEvent};
 use crate::player::Player;
 use crate::TILE_SIZE;
 use bevy::prelude::*;
@@ -7,17 +7,9 @@ use rand::{thread_rng, Rng};
 
 const COLUMNS: usize = 13;
 const ROWS: usize = 21;
-
 const ENEMY_COUNT: usize = 10;
-
 const ENEMY_FRAMES: usize = 9;
 
-#[derive(Event)]
-pub struct HealthUpdateEvent {
-    pub entity: Entity,
-    pub total_health: f32,
-    pub new_health: f32,
-}
 #[derive(Component)]
 pub struct EnemyNameUI;
 #[derive(Component)]
@@ -25,7 +17,7 @@ pub struct EnemyHealthBackgroundUI;
 #[derive(Component)]
 pub struct EnemyHealthForegroundUI;
 
-pub fn update_hp(sprite: &mut Sprite, total_health: f32, new_health: f32) {
+pub fn update_hp_ui(sprite: &mut Sprite, total_health: f32, new_health: f32) {
     let percentage = new_health / total_health;
     let foreground_scale_x = TILE_SIZE * percentage;
     *sprite = Sprite {
@@ -46,22 +38,34 @@ pub struct SkeletonSheet {
 #[derive(Component, Debug)]
 pub struct Enemy {
     pub speed: f32,
-    pub total_health: f32,
-    pub current_health: f32,
     pub level: u32,
     pub moving: bool,
-    pub graphics: Graphics,
     pub aggro_range: f32,
     pub aggro: bool,
     pub spawn_coords: Vec3,
     pub display_name: String,
 }
 
+impl Default for Enemy {
+    fn default() -> Self {
+        Self {
+            spawn_coords: Vec3::new(0.0, 0.0, 0.0),
+            aggro: false,
+            aggro_range: 150.0,
+            speed: 1.0,
+            moving: false,
+            display_name: "".to_string(),
+            level: 3,
+        }
+    }
+}
 #[derive(Bundle)]
 pub struct EnemyBundle {
     pub enemy: Enemy,
     pub sprite: SpriteSheetBundle,
     pub animation: FrameAnimation,
+    pub facing: Facing,
+    pub health: Health,
     // pub ui: EnemyUI,
 }
 
@@ -77,31 +81,11 @@ pub struct EnemyUIHealth {
     pub foreground: EnemyHealthForegroundUI,
 }
 
-impl Default for Enemy {
-    fn default() -> Self {
-        Self {
-            spawn_coords: Vec3::new(0.0, 0.0, 0.0),
-            aggro: false,
-            aggro_range: 150.0,
-            speed: 1.0,
-            total_health: 130.0,
-            current_health: 130.0,
-            moving: false,
-            graphics: Graphics {
-                facing: Facing::Down,
-            },
-            display_name: "".to_string(),
-            level: 3,
-        }
-    }
-}
-
 pub struct EnemyPlugin;
 
 impl Plugin for EnemyPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_enemies)
-            .add_event::<HealthUpdateEvent>()
             .add_systems(Update, move_enemies)
             .add_systems(Update, animate_enemies)
             .add_systems(Update, update_enemy_graphics)
@@ -119,7 +103,7 @@ fn update_health_ui(
             if parent.get() == event.entity {
                 for child in children.iter() {
                     if let Ok(mut sprite) = q_sprites.get_mut(*child) {
-                        update_hp(&mut sprite.0, event.total_health, event.new_health);
+                        update_hp_ui(&mut sprite.0, event.total_health, event.new_health);
                     }
                 }
             }
@@ -145,11 +129,11 @@ fn animate_enemies(
 }
 
 fn update_enemy_graphics(
-    mut sprites_query: Query<(&Enemy, &mut FrameAnimation)>,
+    mut sprites_query: Query<(&Facing, &mut FrameAnimation), With<Enemy>>,
     char: Res<SkeletonSheet>,
 ) {
-    for (enemy, mut animation) in &mut sprites_query.iter_mut() {
-        animation.frames = match enemy.graphics.facing {
+    for (facing, mut animation) in &mut sprites_query.iter_mut() {
+        animation.frames = match facing {
             Facing::Up => char.up.to_vec(),
             Facing::Down => char.down.to_vec(),
             Facing::Left => char.left.to_vec(),
@@ -158,11 +142,11 @@ fn update_enemy_graphics(
     }
 }
 fn move_enemies(
-    mut query: Query<(&mut Transform, &mut Enemy, &mut FrameAnimation), With<Enemy>>,
+    mut query: Query<(&mut Transform, &mut Facing, &mut Enemy, &mut FrameAnimation), With<Enemy>>,
     player: Query<&Transform, (With<Player>, Without<Enemy>)>,
 ) {
     let player_transform = player.single();
-    for (mut transform, mut enemy, mut animation) in &mut query.iter_mut() {
+    for (mut transform, mut facing, mut enemy, mut animation) in &mut query.iter_mut() {
         let direction = player_transform.translation - transform.translation;
         let distance = direction.length();
 
@@ -177,7 +161,7 @@ fn move_enemies(
         if distance <= aggro_range {
             let direction = direction / distance;
             let movement = direction * enemy.speed;
-            enemy.graphics.facing = get_facing_direction(direction);
+            *facing = get_facing_direction(direction);
             transform.translation += movement;
             enemy.moving = true;
             enemy.aggro = false;
@@ -185,14 +169,14 @@ fn move_enemies(
         } else if distance_to_spawn > 2.0 {
             let direction = direction_to_spawn / distance_to_spawn;
             let movement = direction * enemy.speed * 4.0; // TODO evaluate: Move back multiplier
-            enemy.graphics.facing = get_facing_direction(direction);
+            *facing = get_facing_direction(direction);
             transform.translation += movement;
             enemy.moving = true;
             enemy.aggro = false;
             animation.timer.unpause();
         } else {
             enemy.moving = false;
-            enemy.graphics.facing = Facing::Down;
+            *facing = Facing::Down;
             animation.timer.pause();
         }
     }
@@ -261,9 +245,6 @@ fn spawn_enemies(
         };
 
         let enemy = Enemy {
-            graphics: Graphics {
-                facing: facing.clone(),
-            },
             spawn_coords: coordinates,
             display_name: "Skeleton".to_string(),
             ..Default::default()
@@ -295,7 +276,8 @@ fn spawn_enemies(
             ..default()
         };
 
-        let enemy_health_percentage = enemy.current_health / enemy.total_health;
+        let enemy_health = Health::new(130.0);
+        let enemy_health_percentage = enemy_health.current() / enemy_health.max();
         let foreground_scale_x = TILE_SIZE * enemy_health_percentage;
         let foreground_ui = SpriteBundle {
             sprite: Sprite {
@@ -312,7 +294,8 @@ fn spawn_enemies(
         };
         let enemy = EnemyBundle {
             enemy,
-            // ui: ui_bundle,
+            facing,
+            health: Health::new(130.0),
             sprite: sprite_bundle,
             animation: FrameAnimation {
                 timer: Timer::from_seconds(0.1, TimerMode::Repeating),
