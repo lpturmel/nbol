@@ -8,7 +8,7 @@ use rand::{thread_rng, Rng};
 
 const COLUMNS: usize = 13;
 const ROWS: usize = 21;
-const ENEMY_COUNT: usize = 10;
+const ENEMY_COUNT: usize = 50;
 const ENEMY_FRAMES: usize = 9;
 
 #[derive(Component)]
@@ -31,7 +31,12 @@ pub struct EnemyHealthBackgroundUI;
 #[derive(Component)]
 pub struct EnemyHealthForegroundUI;
 
-pub fn update_hp_ui(sprite: &mut Sprite, total_health: f32, new_health: f32) {
+pub fn update_hp_ui(
+    sprite: &mut Sprite,
+    transform: &mut Transform,
+    total_health: f32,
+    new_health: f32,
+) {
     let percentage = new_health / total_health;
     let foreground_scale_x = TILE_SIZE * percentage;
     *sprite = Sprite {
@@ -39,6 +44,7 @@ pub fn update_hp_ui(sprite: &mut Sprite, total_health: f32, new_health: f32) {
         custom_size: Some(Vec2::new(foreground_scale_x, 5.0)),
         ..default()
     };
+    transform.translation = Vec3::new(-TILE_SIZE / 2.0 + foreground_scale_x / 2.0, 0.0, 0.0);
 }
 
 #[derive(Resource, Clone)]
@@ -113,7 +119,7 @@ impl Plugin for EnemyPlugin {
 
 fn update_health_ui(
     mut events: EventReader<HealthUpdateEvent>,
-    mut q_sprites: Query<(&mut Sprite, &Parent), With<EnemyHealthForegroundUI>>,
+    mut q_sprites: Query<(&mut Sprite, &mut Transform, &Parent), With<EnemyHealthForegroundUI>>,
     mut q_background: Query<(&Parent, &Children), With<EnemyHealthBackgroundUI>>,
 ) {
     for event in events.read() {
@@ -121,7 +127,12 @@ fn update_health_ui(
             if parent.get() == event.entity {
                 for child in children.iter() {
                     if let Ok(mut sprite) = q_sprites.get_mut(*child) {
-                        update_hp_ui(&mut sprite.0, event.total_health, event.new_health);
+                        update_hp_ui(
+                            &mut sprite.0,
+                            &mut sprite.1,
+                            event.total_health,
+                            event.new_health,
+                        );
                     }
                 }
             }

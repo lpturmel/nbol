@@ -110,8 +110,10 @@ fn setup_xp_ui(mut commands: Commands) {
             display: Display::Flex,
             bottom: Val::Px(5.0),
             left: Val::Px(5.0),
+            flex_direction: FlexDirection::Row,
+            row_gap: Val::Px(5.0),
             width: Val::Percent(100.0),
-            height: Val::Px(10.0),
+            height: Val::Px(20.0),
             ..Default::default()
         },
         ..Default::default()
@@ -123,13 +125,14 @@ fn setup_xp_ui(mut commands: Commands) {
         format!("{}", level.get()),
         TextStyle {
             color: Color::WHITE,
+            font_size: 15.0,
             ..default()
         },
     );
     let level_text_entity = commands.spawn((level_text, LevelText)).id();
     let xp_bar_background = NodeBundle {
         style: Style {
-            align_items: AlignItems::Start,
+            align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             width: Val::Percent(100.0),
             position_type: PositionType::Relative,
@@ -154,7 +157,7 @@ fn setup_xp_ui(mut commands: Commands) {
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             // TODO - change to 0.0
-            width: Val::Percent(50.0),
+            width: Val::Percent(0.0),
             height: Val::Percent(100.0),
             position_type: PositionType::Absolute,
             left: Val::Px(0.0),

@@ -9,6 +9,7 @@ const COLUMNS: usize = 8;
 const ROWS: usize = 8;
 
 const FIREBALL_FRAMES: usize = 7;
+pub const FIREBALL_BASE_DAMAGE: f32 = 28.0;
 
 #[derive(Resource)]
 pub struct AbilitySheet {

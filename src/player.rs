@@ -1,4 +1,4 @@
-use crate::abilities::{AbilitySheet, Fireball, Projectile};
+use crate::abilities::{AbilitySheet, Fireball, Projectile, FIREBALL_BASE_DAMAGE};
 use crate::damage::{CriticalHit, Damage};
 use crate::entities::{DespawnTimer, Facing, FrameAnimation, Health, SpriteSheet};
 use crate::exp::{Experience, Level};
@@ -122,11 +122,11 @@ impl Plugin for PlayerPlugin {
 fn throw_fireball(
     mut commands: Commands,
     keyboard: Res<ButtonInput<MouseButton>>,
-    player_query: Query<(&Facing, &Transform), With<Player>>,
+    player_query: Query<(&Facing, &Level, &Transform), With<Player>>,
     abilities: Res<AbilitySheet>,
 ) {
     if keyboard.just_pressed(MouseButton::Right) {
-        let (facing, transform) = player_query.single();
+        let (facing, level, transform) = player_query.single();
         let direction = facing;
         let projectile = Projectile::default();
         let player_coords = transform.translation;
@@ -145,6 +145,10 @@ fn throw_fireball(
             transform: Transform::from_translation(player_coords),
             ..default()
         };
+
+        // The fireball damage should scale with the player's level by 5% per level
+        let fireball_dmg =
+            FIREBALL_BASE_DAMAGE + (FIREBALL_BASE_DAMAGE * 0.05 * level.get() as f32);
         commands
             .spawn((
                 projectile,
@@ -161,7 +165,7 @@ fn throw_fireball(
                 },
                 Fireball,
                 DespawnTimer(Timer::from_seconds(5.0, TimerMode::Once)),
-                Damage::new(20.0),
+                Damage::new(fireball_dmg),
                 // 10% chance to deal double damage
                 CriticalHit::new(0.1, 2.0),
                 *facing,
